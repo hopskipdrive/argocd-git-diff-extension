@@ -5,7 +5,7 @@ import { fetchDiff } from './api';
 // Minimal CSS for the diff viewer to look decent
 import 'react-diff-view/style/index.css';
 
-const GitDiffExtension = ({ application, tree, resource }) => {
+export const GitDiffExtension = ({ application, tree, resource }) => {
   const [diffFiles, setDiffFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -94,10 +94,12 @@ const GitDiffExtension = ({ application, tree, resource }) => {
   );
 };
 
+export const component = GitDiffExtension;
+
 // Register the extension
 ((window) => {
   window.extensionsAPI && window.extensionsAPI.registerResourceExtension(
-    GitDiffExtension,
+    component,
     '*',
     'Deployment',
     'Git Diff',
