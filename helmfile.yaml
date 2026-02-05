@@ -52,4 +52,4 @@ releases:
           repository: local/argocd-diff-backend
           tag: latest
       - env:
-          GITHUB_TOKEN: "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"
+          GITHUB_TOKEN: {{ env HOMEBREW_GITHUB_API_TOKEN }}
