@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: extension-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: extension-backend
+  template:
+    metadata:
+      labels:
+        app: extension-backend
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: extension-backend
+spec:
+  selector:
+    app: extension-backend
+  ports:
+    - protocol: TCP
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}

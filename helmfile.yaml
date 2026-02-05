@@ -1,0 +1,55 @@
+repositories:
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+
+releases:
+  - name: argo-cd
+    namespace: argocd
+    chart: argo/argo-cd
+    version: 9.3.7
+    values:
+      - server:
+          # 1. Disable the chart's native extension logic
+          extensions:
+            enabled: false
+
+          # 2. Define the volume
+          volumes:
+            - name: extensions
+              emptyDir: {}
+
+          # 3. Mount to /tmp/extensions/ in the main server (Matching your manifest)
+          volumeMounts:
+            - name: extensions
+              mountPath: /app/extensions/
+
+          # 4. The Extension Installer InitContainer
+          initContainers:
+            - name: extension-installer
+              image: quay.io/argoprojlabs/argocd-extension-installer:v0.0.9
+              env:
+                - name: EXTENSION_URL
+                  # Point to your internal Backend Service
+                  value: "http://extension-backend.argocd.svc.cluster.local/static/extension.tar.gz"
+              volumeMounts:
+                - name: extensions
+                  mountPath: /tmp/extensions/
+              securityContext:
+                runAsUser: 1000
+                allowPrivilegeEscalation: false
+
+      - configs:
+          cm:
+            # Backend Config
+            extension.config: |
+              backendUrl: "http://localhost:4000"
+
+  - name: git-diff-extension
+    namespace: argocd
+    chart: ./chart/extension-backend
+    values:
+      - image:
+          repository: local/argocd-diff-backend
+          tag: latest
+      - env:
+          GITHUB_TOKEN: "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"

@@ -1,0 +1,10 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCDExtension
+metadata:
+  name: git-diff-extension
+  finalizers:
+    - extensions-finalizer.argocd.argoproj.io
+spec:
+  sources:
+  - web:
+      url: "http://extension-backend.argocd.svc.cluster.local/static/extension.tar.gz"

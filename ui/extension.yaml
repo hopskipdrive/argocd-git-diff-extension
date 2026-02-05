@@ -1,0 +1,10 @@
+name: git-diff-extension
+version: 1.0.0
+description: Displays git diffs for image tag changes
+url: https://github.com/hopskipdrive/argocd-diff-extension
+# This is the critical line that replaces ui.bannercontent
+ui:
+  - file: main.js
+    # 'location' defines where the script is injected.
+    # 'application' means it loads on the Application details page.
+    location: application

@@ -1,0 +1,29 @@
+{
+  "name": "argocd-diff-extension-ui",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "webpack --mode production && mkdir -p dist/resources/git-diff-extension && mv dist/main.js dist/resources/git-diff-extension/ && cp extension.yaml dist/resources/git-diff-extension/ && tar -czf dist/extension.tar.gz -C dist resources"
+  },
+  "dependencies": {
+    "react-diff-view": "^2.4.10",
+    "diff": "^5.1.0",
+    "prop-types": "^15.8.1",
+    "classnames": "^2.3.2"
+  },
+  "devDependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.15",
+    "babel-loader": "^9.1.3",
+    "css-loader": "^6.8.1",
+    "style-loader": "^3.3.3",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0", 
+    "react-dom": "^17.0.0"
+  }
+}
