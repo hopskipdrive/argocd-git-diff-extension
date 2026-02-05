@@ -2,7 +2,7 @@
   "name": "argocd-diff-extension-ui",
   "version": "1.0.0",
   "scripts": {
-    "build": "webpack --mode production && mkdir -p dist/resources/git-diff-extension && mv dist/main.js dist/resources/git-diff-extension/ && cp extension.yaml dist/resources/git-diff-extension/ && tar -czf dist/extension.tar.gz -C dist resources"
+    "build": "webpack --mode production"
   },
   "dependencies": {
     "react-diff-view": "^2.4.10",
