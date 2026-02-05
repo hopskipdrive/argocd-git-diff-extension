@@ -1,15 +1,16 @@
 const path = require('path');
 
+extName = "GitDiffExtension"
+
 module.exports = {
   entry: './src/index.js',
   output: {
-    filename: 'main.js',
-    path: path.resolve(__dirname, 'dist'),
-    libraryTarget: 'window', // Important: Exposes your extension globally
-    library: 'ArgoCDDiffExtension' 
+    filename: `extensions-${extName}.js`,
+    path: __dirname + `/dist/resources/extension-${extName}.js`,
+    libraryTarget: 'window',
+    library: ["tmp", "extensions"],
   },
   externals: {
-    // We don't bundle React because ArgoCD already provides it
     react: 'React',
     'react-dom': 'ReactDOM',
   },

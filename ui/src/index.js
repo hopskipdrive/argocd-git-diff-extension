@@ -1,7 +1,32 @@
-import React, { useEffect, useState } from 'react';
-import { parseDiff, Diff, Hunk } from 'react-diff-view';
-import { fetchDiff } from './api';
+// import React, { useEffect, useState } from 'react';
+// import { parseDiff, Diff, Hunk } from 'react-diff-view';
+// import { fetchDiff } from './api';
 
+import React from "react";
+
+export const GitDiffExtension = (props) => {
+  return (
+    <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '4px' }}>
+      <h3 style={{ marginTop: 0 }}>Git Diff</h3>
+      <p>Coming soon!</p>
+    </div>
+  );
+};
+
+export const component = GitDiffExtension;
+
+((window) => {
+  window?.extensionsAPI?.registerResourceExtension(
+    component,
+    "*",            
+    "Deployment",   
+    "Git Diff",     
+    { icon: "fa fa-git" } 
+  );
+})(window);
+
+
+/*
 // Minimal CSS for the diff viewer to look decent
 import 'react-diff-view/style/index.css';
 
@@ -106,3 +131,4 @@ export const component = GitDiffExtension;
     { icon: "fa fa-chart-area" }
   );
 })(window);
+*/
