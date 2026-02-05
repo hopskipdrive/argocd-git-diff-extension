@@ -100,6 +100,7 @@ const GitDiffExtension = ({ application, tree, resource }) => {
     GitDiffExtension,
     '*',
     'Deployment',
-    'Git Diff'
+    'Git Diff',
+    { icon: "fa fa-chart-area" }
   );
 })(window);
