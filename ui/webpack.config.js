@@ -3,16 +3,15 @@ const webpack = require("webpack");
 const TerserWebpackPlugin = require("terser-webpack-plugin");
 
 const config = {
-  // 1. Entry: Now pointing to .tsx
   entry: {
     extension: "./src/index.tsx",
   },
   output: {
-    // 2. Output: Keep filename 'main.js' so your GitHub Action doesn't break
-    filename: "main.js",
-    path: __dirname + "/dist",
+    filename: "extensions-GitDiff.js",
+    path: __dirname + "/dist/resources/extension-GitDiff",
     libraryTarget: "window",
-    library: ["extensionsAPI", "git-diff-extension"],
+    // library: ["extensionsAPI", "git-diff-extension"],
+    library: ["/tmp", "extensions"],
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".json"],
@@ -35,7 +34,6 @@ const config = {
   module: {
     rules: [
       {
-        // 3. Loader: Use esbuild-loader for .ts and .tsx files
         test: /\.(ts|js)x?$/,
         loader: "esbuild-loader",
         options: {

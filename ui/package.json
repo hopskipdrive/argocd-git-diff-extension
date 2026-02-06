@@ -2,7 +2,7 @@
   "name": "argocd-diff-extension-ui",
   "version": "1.0.0",
   "scripts": {
-    "build": "webpack --mode production"
+    "build": "NODE_OPTIONS=--openssl-legacy-provider webpack --config ./webpack.config.js && tar -C dist -cvf dist/extension.tar resources"
   },
   "dependencies": {
     "classnames": "^2.3.2",

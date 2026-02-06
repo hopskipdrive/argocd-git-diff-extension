@@ -3,10 +3,10 @@ name: Release Extension
 on:
   push:
     tags:
-      - 'v*' # Triggers on tags like v1.0.0
+      - 'v*'
 
 permissions:
-  contents: write # Required to upload assets to the release
+  contents: write
 
 jobs:
   build-and-release:
@@ -28,27 +28,12 @@ jobs:
         working-directory: ui
         run: npm run build
 
-      - name: Package Extension
-        working-directory: ui
-        run: |
-          # 1. Create the strict structure required by the ArgoCD Extension Installer
-          # Structure MUST be: resources/<extension-name>/<files>
-          mkdir -p package/resources/git-diff-extension
-          
-          # 2. Copy the build artifacts
-          cp dist/main.js package/resources/git-diff-extension/
-          cp extension.yaml package/resources/git-diff-extension/
-          
-          # 3. Create the Tarball
-          # We tar the 'resources' folder at the root
-          cd package
-          tar -czf ../extension.tar.gz resources
-          
-          # Verify structure for debugging logs
-          tar -tf ../extension.tar.gz
-
-      - name: Create Release
+      - name: Draft release
         uses: softprops/action-gh-release@v1
         with:
-          files: ui/extension.tar.gz
-          generate_release_notes: true
+          tag_name: ${{ github.event.inputs.tag }}
+          draft: true
+          files: |
+            ui/dist/extension.tar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
