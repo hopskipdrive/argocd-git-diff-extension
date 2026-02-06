@@ -40,7 +40,8 @@ export const GitDiffExtension = (props: { application: Application }) => {
           method: "GET",
           headers: {
             "Argocd-Application-Name": appIdentifier,
-            "Argocd-Application-Namespace": application.metadata.namespace
+            "Argocd-Application-Namespace": application.metadata.namespace,
+	    "Argocd-Project-Name": application.spec.project
           }
         });
 
