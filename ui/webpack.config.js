@@ -1,37 +1,56 @@
-const path = require('path');
+const path = require("path");
+const webpack = require("webpack");
+const TerserWebpackPlugin = require("terser-webpack-plugin");
 
-module.exports = {
-  entry: './src/index.js',
+const config = {
+  entry: {
+    extension: "./src/index.tsx",
+  },
   output: {
-    filename: 'main.js',
-    path: path.resolve(__dirname, 'dist'),
-    libraryTarget: 'window', // Important: Exposes your extension globally
-    library: 'ArgoCDDiffExtension' 
+    filename: "extensions-GitDiff.js",
+    path: __dirname + "/dist/resources/extension-GitDiff",
+    libraryTarget: "window",
+    // library: ["extensionsAPI", "git-diff-extension"],
+    library: ["/tmp", "extensions"],
+  },
+  resolve: {
+    extensions: [".ts", ".tsx", ".js", ".json"],
   },
   externals: {
-    // We don't bundle React because ArgoCD already provides it
-    react: 'React',
-    'react-dom': 'ReactDOM',
+    react: "React",
+    "react-dom": "ReactDOM",
+  },
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserWebpackPlugin({
+        terserOptions: {
+          format: { comments: false },
+        },
+        extractComments: false,
+      }),
+    ],
   },
   module: {
     rules: [
       {
-        test: /\.(js|jsx)$/,
-        exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env', '@babel/preset-react']
-          }
-        }
+        test: /\.(ts|js)x?$/,
+        loader: "esbuild-loader",
+        options: {
+          loader: "tsx",
+          target: "es2015",
+        },
+      },
+      {
+        test: /\.scss$/,
+        use: ["style-loader", "css-loader", "sass-loader"],
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader']
-      }
-    ]
+        use: ["style-loader", "css-loader"],
+      },
+    ],
   },
-  resolve: {
-    extensions: ['.js', '.jsx']
-  }
 };
+
+module.exports = config;
