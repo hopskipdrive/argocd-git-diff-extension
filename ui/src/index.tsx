@@ -35,7 +35,13 @@ export const GitDiffExtension = (props: { application: Application }) => {
           path: application.spec.source.path || ".",
         });
 
-        const response = await fetch(`/extensions/git-diff-extension/api/diff?${params.toString()}`);
+        const response = await fetch(`/extensions/git-diff-extension/api/diff?${params.toString()}`, {
+          method: "GET",
+          headers: {
+            "Argocd-Application-Name": application.metadata.name,
+            "Argocd-Application-Namespace": application.metadata.namespace
+          }
+        });
 
         if (!response.ok) {
           throw new Error(`Backend Error: ${response.statusText}`);
