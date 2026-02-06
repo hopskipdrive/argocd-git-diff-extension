@@ -42,7 +42,8 @@ export const GitDiffExtension = (props: { application: Application }) => {
             "Argocd-Application-Name": appIdentifier,
             "Argocd-Application-Namespace": application.metadata.namespace,
 	    "Argocd-Project-Name": application.spec.project
-          }
+          },
+	  credentials: "include"
         });
 
         if (!response.ok) {
