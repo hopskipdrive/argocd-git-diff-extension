@@ -39,9 +39,10 @@ export const GitDiffExtension = (props: { application: Application }) => {
         const response = await fetch(`/extensions/git-diff-extension/api/diff?${params.toString()}`, {
           method: "GET",
           headers: {
-            "Argocd-Application-Name": appIdentifier,
-            "Argocd-Application-Namespace": application.metadata.namespace,
-	    "Argocd-Project-Name": application.spec.project
+	    "Content-Type": "application/json",
+            "argocd-application-name": appIdentifier,
+            "argocd-application-namespace": application.metadata.namespace,
+	    "argocd-project-name": application.spec.project
           },
 	  credentials: "include"
         });
