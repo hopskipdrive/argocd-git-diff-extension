@@ -1,11 +1,31 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 
+// --- Constants ---
+
+/**
+ * Annotation key placed on an ArgoCD Application to override the source repo URL.
+ * Useful when the Application points to a GitOps monorepo but the application
+ * code lives in a separate repository.
+ *
+ * Example annotation on an ArgoCD Application:
+ *   argocd-git-diff-extension/source-repo-url: https://github.com/hopskipdrive/rails-api
+ */
+const ANNOTATION_GIT_REPO = "argocd-git-diff-extension/source-repo-url";
+
+/**
+ * Annotation key to override the target revision used for diffing.
+ * Optional — falls back to spec.source.targetRevision if absent.
+ */
+const ANNOTATION_REVISION = "argocd-git-diff-extension/source-revision";
+
 // --- Types ---
+
 interface Application {
   metadata: {
     name: string;
     namespace: string;
+    annotations?: Record<string, string>;
   };
   spec: {
     project: string;
@@ -17,10 +37,9 @@ interface Application {
   };
 }
 
-// Matches the JSON structure from your Go Backend
 interface DiffFile {
   filename: string;
-  status: string; // e.g. "modified", "added", "removed"
+  status: string;
   additions: number;
   deletions: number;
   patch: string;
@@ -29,10 +48,11 @@ interface DiffFile {
 
 interface DiffResponse {
   files: DiffFile[];
-  html_url: string; // Link to the comparison on GitHub
+  html_url: string;
 }
 
 // --- Styles ---
+
 const styles = {
   container: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
@@ -60,6 +80,12 @@ const styles = {
     fontSize: "12px",
     color: "#586069",
   },
+  repoLabel: {
+    margin: "2px 0 0 0",
+    fontSize: "11px",
+    color: "#586069",
+    fontFamily: "SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace",
+  },
   githubBtn: {
     display: "inline-flex",
     alignItems: "center",
@@ -80,7 +106,7 @@ const styles = {
     padding: "20px",
     overflowY: "auto" as const,
     flex: 1,
-    backgroundColor: "#f6f8fa", // Light gray background for contrast
+    backgroundColor: "#f6f8fa",
   },
   fileCard: {
     border: "1px solid #d1d5da",
@@ -137,47 +163,64 @@ const styles = {
     flex: 1,
     paddingRight: "10px",
   },
-  // Color classes
   added: { backgroundColor: "#e6ffed", color: "#22863a" },
   removed: { backgroundColor: "#ffeef0", color: "#b31d28" },
   chunk: { backgroundColor: "#f1f8ff", color: "#0366d6", fontWeight: "bold" as const },
   normal: { color: "#24292e" },
 };
 
-// --- Helper to guess language badge ---
+// --- Helpers ---
+
 const getLanguageLabel = (filename: string): string => {
-  const ext = filename.split('.').pop()?.toLowerCase();
+  const ext = filename.split(".").pop()?.toLowerCase();
   switch (ext) {
-    case 'rb': return 'Ruby';
-    case 'js': return 'JavaScript';
-    case 'ts': return 'TypeScript';
-    case 'tsx': return 'React TS';
-    case 'go': return 'Go';
-    case 'py': return 'Python';
-    case 'yaml': case 'yml': return 'YAML';
-    case 'json': return 'JSON';
-    case 'md': return 'Markdown';
-    case 'sh': return 'Shell';
-    case 'dockerfile': return 'Docker';
-    default: return ext?.toUpperCase() || 'Text';
+    case "rb": return "Ruby";
+    case "js": return "JavaScript";
+    case "ts": return "TypeScript";
+    case "tsx": return "React TS";
+    case "go": return "Go";
+    case "py": return "Python";
+    case "yaml": case "yml": return "YAML";
+    case "json": return "JSON";
+    case "md": return "Markdown";
+    case "sh": return "Shell";
+    case "dockerfile": return "Docker";
+    default: return ext?.toUpperCase() || "Text";
   }
 };
 
-// --- Component to Render a Single File's Diff ---
+/**
+ * Resolves the effective git repo URL for the diff request.
+ * Prefers the annotation (for monorepo GitOps) over spec.source.repoURL.
+ */
+export const resolveRepoURL = (app: Application): string => {
+  return app.metadata?.annotations?.[ANNOTATION_GIT_REPO] || app.spec?.source?.repoURL || "";
+};
+
+/**
+ * Resolves the effective target revision.
+ * Prefers the annotation over spec.source.targetRevision.
+ */
+export const resolveRevision = (app: Application): string => {
+  return app.metadata?.annotations?.[ANNOTATION_REVISION] || app.spec?.source?.targetRevision || "HEAD";
+};
+
+// --- Sub-components ---
+
 const FileDiffViewer = ({ file }: { file: DiffFile }) => {
   if (!file.patch) {
     return (
       <div style={styles.fileCard}>
         <div style={styles.fileHeader}>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-             <span style={styles.fileName}>{file.filename}</span>
-             <span style={{ fontSize: '11px', color: '#666', border: '1px solid #ddd', borderRadius: '3px', padding: '0 4px' }}>
-               {file.status}
-             </span>
-           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={styles.fileName}>{file.filename}</span>
+            <span style={{ fontSize: "11px", color: "#666", border: "1px solid #ddd", borderRadius: "3px", padding: "0 4px" }}>
+              {file.status}
+            </span>
+          </div>
         </div>
         <div style={{ padding: "20px", fontStyle: "italic", color: "#666", textAlign: "center" }}>
-          Binary file or no changes recorded in patch.
+          Binary file or no patch recorded.
         </div>
       </div>
     );
@@ -187,36 +230,33 @@ const FileDiffViewer = ({ file }: { file: DiffFile }) => {
 
   return (
     <div style={styles.fileCard}>
-      {/* File Header */}
       <div style={styles.fileHeader}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <i className="fa fa-file-text-o" style={{ color: '#666' }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <i className="fa fa-file-text-o" style={{ color: "#666" }} />
           <span style={styles.fileName}>{file.filename}</span>
-          <span style={{ 
-            backgroundColor: '#eff3f6', 
-            border: '1px solid #e1e4e8', 
-            borderRadius: '2rem', 
-            padding: '0 8px', 
-            fontSize: '10px',
-            color: '#586069',
-            fontWeight: 500
+          <span style={{
+            backgroundColor: "#eff3f6",
+            border: "1px solid #e1e4e8",
+            borderRadius: "2rem",
+            padding: "0 8px",
+            fontSize: "10px",
+            color: "#586069",
+            fontWeight: 500,
           }}>
             {getLanguageLabel(file.filename)}
           </span>
         </div>
         <div style={styles.fileStats}>
-          <span style={{ color: '#28a745', marginRight: 10 }}>+{file.additions}</span>
-          <span style={{ color: '#cb2431' }}>-{file.deletions}</span>
+          <span style={{ color: "#28a745", marginRight: 10 }}>+{file.additions}</span>
+          <span style={{ color: "#cb2431" }}>-{file.deletions}</span>
         </div>
       </div>
 
-      {/* Diff Content */}
       <div style={styles.diffContainer}>
         {lines.map((line, idx) => {
           let lineStyle = {};
           let type = "normal";
 
-          // Parsing the Git Patch format
           if (line.startsWith("@@")) {
             type = "chunk";
             lineStyle = styles.chunk;
@@ -228,17 +268,14 @@ const FileDiffViewer = ({ file }: { file: DiffFile }) => {
             lineStyle = styles.removed;
           }
 
-          // Don't render empty trailing newline if it's the last one
           if (idx === lines.length - 1 && line === "") return null;
 
           return (
             <div key={idx} style={{ ...styles.line, ...lineStyle }}>
-              {/* Gutter (Line Marker) */}
               <div style={styles.lineNumber}>
-                {type === 'added' && '+'}
-                {type === 'removed' && '-'}
+                {type === "added" && "+"}
+                {type === "removed" && "-"}
               </div>
-              {/* Code Content */}
               <div style={styles.content}>{line}</div>
             </div>
           );
@@ -249,111 +286,117 @@ const FileDiffViewer = ({ file }: { file: DiffFile }) => {
 };
 
 // --- Main Extension Component ---
+
 export const GitDiffExtension = (props: { application: Application }) => {
   const { application } = props;
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [githubLink, setGithubLink] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [effectiveRepo, setEffectiveRepo] = useState<string>("");
 
   useEffect(() => {
+    if (!application) return;
+
     const fetchDiff = async () => {
       setLoading(true);
       setError(null);
       setFiles([]);
       setGithubLink("");
 
+      // Resolve repo and revision — annotation takes precedence for monorepo GitOps.
+      const gitRepoURL = resolveRepoURL(application);
+      const targetRevision = resolveRevision(application);
+      setEffectiveRepo(gitRepoURL);
+
       try {
         const params = new URLSearchParams({
           appName: application.metadata.name,
           appNamespace: application.metadata.namespace,
+          // repoURL is the spec value (may be gitops monorepo)
           repoURL: application.spec.source.repoURL,
-          targetRevision: application.spec.source.targetRevision || "HEAD",
+          // gitRepoURL is the effective app repo (from annotation or spec)
+          gitRepoURL: gitRepoURL,
+          targetRevision: targetRevision,
           path: application.spec.source.path || ".",
         });
 
-        // Headers required by ArgoCD Proxy
-        const headers = {
+        const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          // Construct the header value exactly as required: namespace:name
           "argocd-application-name": `${application.metadata.namespace}:${application.metadata.name}`,
           "argocd-application-namespace": application.metadata.namespace,
-          "argocd-project-name": application.spec.project || "default"
+          "argocd-project-name": application.spec.project || "default",
         };
 
-        const response = await fetch(`/extensions/git-diff-extension/api/diff?${params.toString()}`, {
-          method: "GET",
-          headers: headers,
-          credentials: "include"
-        });
+        const response = await fetch(
+          `/extensions/git-diff-extension/api/diff?${params.toString()}`,
+          { method: "GET", headers, credentials: "include" }
+        );
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Backend Error (${response.status}): ${errorText}`);
+          throw new Error(`Backend error (${response.status}): ${errorText}`);
         }
 
         const data: DiffResponse = await response.json();
-        
-        // Handle Go Backend Response structure
         setFiles(data.files || []);
         setGithubLink(data.html_url || "");
-
       } catch (err: any) {
-        console.error("Git Diff Extension Error:", err);
+        console.error("Git Diff Extension error:", err);
         setError(err.message || "Failed to load git diff");
       } finally {
         setLoading(false);
       }
     };
 
-    if (application) {
-      fetchDiff();
-    }
+    fetchDiff();
   }, [application]);
+
+  const revision = resolveRevision(application);
 
   return (
     <div style={styles.container}>
-      {/* Extension Header */}
       <div style={styles.headerBar}>
-         <div>
-            <h3 style={styles.title}>Git Diff Analysis</h3>
-            <p style={styles.subtitle}>
-               Comparison: <strong>{application?.spec?.source?.targetRevision || "HEAD"}</strong> vs Parent Commit
-            </p>
-         </div>
-         {/* External Link Button */}
-         {githubLink && (
-           <a href={githubLink} target="_blank" rel="noreferrer" style={styles.githubBtn}>
-             View on GitHub <i className="fa fa-external-link" style={{ marginLeft: "6px" }}></i>
-           </a>
-         )}
+        <div>
+          <h3 style={styles.title}>Git Diff Analysis</h3>
+          <p style={styles.subtitle}>
+            <strong>{revision}</strong> vs parent commit
+          </p>
+          {effectiveRepo && (
+            <p style={styles.repoLabel}>{effectiveRepo}</p>
+          )}
+        </div>
+        {githubLink && (
+          <a href={githubLink} target="_blank" rel="noreferrer" style={styles.githubBtn}>
+            View on GitHub <i className="fa fa-external-link" style={{ marginLeft: "6px" }} />
+          </a>
+        )}
       </div>
 
       <div style={styles.scrollArea}>
         {loading && (
           <div style={{ textAlign: "center", padding: "60px", color: "#586069" }}>
-            <i className="fa fa-circle-o-notch fa-spin fa-2x" style={{ marginBottom: "15px", display: "block" }}></i>
+            <i className="fa fa-circle-o-notch fa-spin fa-2x" style={{ marginBottom: "15px", display: "block" }} />
             <span>Loading comparison data...</span>
           </div>
         )}
 
         {!loading && error && (
           <div style={{ padding: "15px", backgroundColor: "#ffeef0", color: "#b31d28", borderRadius: "6px", border: "1px solid #f9dbe0" }}>
-            <i className="fa fa-exclamation-triangle" style={{ marginRight: "8px" }}></i>
+            <i className="fa fa-exclamation-triangle" style={{ marginRight: "8px" }} />
             <strong>Error:</strong> {error}
           </div>
         )}
 
         {!loading && !error && files.length === 0 && (
-           <div style={{ padding: "40px", textAlign: "center", color: "#586069", border: "1px dashed #d1d5da", borderRadius: "6px", backgroundColor: "#fff" }}>
-             <i className="fa fa-check-circle-o" style={{ fontSize: "24px", color: "#28a745", marginBottom: "10px", display: "block" }}></i>
-             No changes detected for this revision.
-           </div>
+          <div style={{ padding: "40px", textAlign: "center", color: "#586069", border: "1px dashed #d1d5da", borderRadius: "6px", backgroundColor: "#fff" }}>
+            <i className="fa fa-check-circle-o" style={{ fontSize: "24px", color: "#28a745", marginBottom: "10px", display: "block" }} />
+            No changes detected for this revision.
+          </div>
         )}
 
-        {/* Render List of Files */}
         {!loading && !error && files.map((file, idx) => (
-          <FileDiffViewer key={idx} file={file} />
+          <FileDiffViewer key={`${file.filename}-${idx}`} file={file} />
         ))}
       </div>
     </div>
@@ -362,7 +405,6 @@ export const GitDiffExtension = (props: { application: Application }) => {
 
 export const component = GitDiffExtension;
 
-// Register the extension with ArgoCD
 ((window: any) => {
   window?.extensionsAPI?.registerResourceExtension(
     component,

@@ -9,27 +9,24 @@ releases:
     version: 9.3.7
     values:
       - server:
-          # 1. Disable the chart's native extension logic
+          # Disable the chart's native extension logic (managed by initContainer below)
           extensions:
             enabled: false
 
-          # 2. Define the volume
           volumes:
             - name: extensions
               emptyDir: {}
 
-          # 3. Mount to /tmp/extensions/ in the main server (Matching your manifest)
           volumeMounts:
             - name: extensions
               mountPath: /app/extensions/
 
-          # 4. The Extension Installer InitContainer
+          # Extension installer initContainer — pulls the UI bundle from the backend service
           initContainers:
             - name: extension-installer
               image: quay.io/argoprojlabs/argocd-extension-installer:v0.0.9
               env:
                 - name: EXTENSION_URL
-                  # Point to your internal Backend Service
                   value: "http://extension-backend.argocd.svc.cluster.local/static/extension.tar.gz"
               volumeMounts:
                 - name: extensions
@@ -40,9 +37,19 @@ releases:
 
       - configs:
           cm:
-            # Backend Config
+            # Enable the proxy extension feature
             extension.config: |
-              backendUrl: "http://localhost:4000"
+              extensions:
+                - name: git-diff-extension
+                  backend:
+                    services:
+                      - url: http://extension-backend.argocd.svc.cluster.local:80
+          params:
+            server.enable.proxy.extension: "true"
+          rbac:
+            policy.csv: |
+              p, role:readonly, extensions, invoke, git-diff-extension, allow
+              p, role:admin, extensions, invoke, git-diff-extension, allow
 
   - name: git-diff-extension
     namespace: argocd
@@ -51,5 +58,15 @@ releases:
       - image:
           repository: local/argocd-diff-backend
           tag: latest
+          pullPolicy: IfNotPresent
+      - logLevel: info
+      # For local development, set GITHUB_TOKEN via the GITHUB_TOKEN env var.
+      # For production, enable externalSecret instead.
+      #
+      # Local dev (GitHub PAT):
       - env:
-          GITHUB_TOKEN: {{ env HOMEBREW_GITHUB_API_TOKEN }}
+          GITHUB_TOKEN: {{ env "GITHUB_TOKEN" | default "" }}
+      # Production (GitHub App via External Secrets):
+      # - externalSecret:
+      #     enabled: true
+      #     clusterSecretStore: cluster-secret-store-internal-secretstore

@@ -1,37 +1,96 @@
+{{- $secretName := "" }}
+{{- if .Values.existingSecret.enabled }}
+  {{- $secretName = .Values.existingSecret.name }}
+{{- else if .Values.externalSecret.enabled }}
+  {{- $secretName = .Values.externalSecret.secretName | default (printf "%s-github-credentials" .Release.Name) }}
+{{- end }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: extension-backend
+  name: {{ .Release.Name }}-extension-backend
+  labels:
+    app: {{ .Release.Name }}-extension-backend
+    app.kubernetes.io/name: extension-backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  {{- with .Values.podAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: extension-backend
+      app: {{ .Release.Name }}-extension-backend
   template:
     metadata:
       labels:
-        app: extension-backend
+        app: {{ .Release.Name }}-extension-backend
+        app.kubernetes.io/name: extension-backend
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Release.Name }}-extension-backend
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: backend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
-            - containerPort: {{ .Values.service.targetPort }}
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
           env:
+            - name: PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
             {{- range $key, $val := .Values.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+          {{- if $secretName }}
+          envFrom:
+            - secretRef:
+                name: {{ $secretName }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: extension-backend
+  labels:
+    app: {{ .Release.Name }}-extension-backend
+    app.kubernetes.io/name: extension-backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
+  type: {{ .Values.service.type }}
   selector:
-    app: extension-backend
+    app: {{ .Release.Name }}-extension-backend
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
