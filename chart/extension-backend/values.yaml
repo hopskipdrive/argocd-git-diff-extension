@@ -1,11 +1,98 @@
 image:
   repository: local/argocd-diff-backend
   tag: latest
-  pullPolicy: Never # Important for local Minikube/Kind usage
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
 
 service:
   type: ClusterIP
   port: 80
   targetPort: 80
 
+# Log level for the backend. Accepted: debug, info, warn, error.
+logLevel: info
+
+# -- GitHub App authentication (preferred for production).
+# Set GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, and GITHUB_APP_PRIVATE_KEY
+# via the externalSecret or existingSecret options below.
+#
+# -- GitHub Personal Access Token (fallback / local development).
+# Set GITHUB_TOKEN via env.GITHUB_TOKEN (not recommended for production).
+
+# Extra environment variables passed as plain key=value pairs.
+# Avoid putting secrets here; use externalSecret or existingSecret instead.
 env: {}
+  # PORT: "80"
+  # LOG_LEVEL: info
+
+# -- ExternalSecret configuration.
+# Creates an ExternalSecret resource to sync credentials from AWS Secrets Manager.
+# Requires the External Secrets Operator to be installed in the cluster.
+externalSecret:
+  enabled: false
+  # Name of the ClusterSecretStore to use (matches infra-monorepo convention).
+  clusterSecretStore: cluster-secret-store-internal-secretstore
+  # Name of the Kubernetes secret that will be created by the ExternalSecret.
+  # Defaults to <release-name>-github-credentials.
+  secretName: ""
+  # AWS Secrets Manager key that stores the GitHub App credentials JSON.
+  # Expected JSON shape:
+  #   {
+  #     "GITHUB_APP_ID": "895906",
+  #     "GITHUB_APP_INSTALLATION_ID": "50603003",
+  #     "GITHUB_APP_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\n..."
+  #   }
+  remoteRefKey: /github/argocd-git-diff-extension
+  # Individual property mappings from the remote secret.
+  data:
+    - secretKey: GITHUB_APP_ID
+      remoteRef:
+        key: /github/argocd-git-diff-extension
+        property: GITHUB_APP_ID
+    - secretKey: GITHUB_APP_INSTALLATION_ID
+      remoteRef:
+        key: /github/argocd-git-diff-extension
+        property: GITHUB_APP_INSTALLATION_ID
+    - secretKey: GITHUB_APP_PRIVATE_KEY
+      remoteRef:
+        key: /github/argocd-git-diff-extension
+        property: GITHUB_APP_PRIVATE_KEY
+
+# -- Existing Secret.
+# If you prefer to manage the secret outside of this chart (e.g. via Vault,
+# Sealed Secrets, or manual creation), set existingSecret.name to the name
+# of an existing Kubernetes secret. Its keys will be mounted as env vars.
+# Takes precedence over externalSecret when both are set.
+existingSecret:
+  enabled: false
+  # name: my-github-credentials
+
+serviceAccount:
+  # Create a dedicated ServiceAccount for the backend pod.
+  create: true
+  # Annotations to add to the service account (e.g. for IRSA).
+  annotations: {}
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/argocd-git-diff-extension
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

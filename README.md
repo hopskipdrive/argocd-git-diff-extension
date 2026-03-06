@@ -1,104 +1,128 @@
 # ArgoCD Git Diff Extension
 
-The project introduces the ArgoCD extension to enable a side-by-side Git Diff view on the Resource tab.
+An ArgoCD UI extension that displays a Git diff between the currently deployed revision and its parent commit, surfaced directly in the ArgoCD application resource view.
 
 ![](./docs/images/screenshot.png)
 
-This extension is composed of 2 components:
-- `git-diff-backend`: A Go service that acts as a secure proxy, handling GitHub API authentication and caching diffs.
-- `ui`: A React extension that renders the diffs returned by the backend with syntax highlighting and file-type detection.
+## Components
+
+- **backend** — A Go service that proxies GitHub API requests, handles GitHub App authentication, and caches diffs (5-minute TTL).
+- **ui** — A React/TypeScript extension rendered inside ArgoCD that displays colored diffs per changed file.
+
+## Features
+
+- GitHub App authentication (preferred) or Personal Access Token (local dev fallback)
+- Monorepo GitOps support via ArgoCD Application annotations
+- Configurable log levels (`debug`, `info`, `warn`, `error`)
+- In-memory diff caching
+- External Secrets Operator integration for credential management
+- Existing secret support (Vault, Sealed Secrets, manual)
 
 ## Prerequisites
 
-- Argo CD version 2.6+
-- A valid GitHub Personal Access Token (PAT)
+- Argo CD 2.6+
+- Kubernetes 1.25+
+- (Production) External Secrets Operator installed in the cluster
+- (Production) A GitHub App with read access to your repositories
 
-## Quick Start
+## Monorepo GitOps Support
 
-### Install `git-diff-backend`
-
-The `manifests` folder in this repo contains an example of how the
-`git-diff-backend` can be installed using Kustomize.
-
-```sh
-git clone [https://github.com/](https://github.com/)<YOUR_ORG>/git-diff-extension.git
-cd git-diff-extension
-
-# 1. Edit manifests/kustomization.yaml to set your GITHUB_TOKEN
-# 2. Apply the manifests
-kustomize build ./manifests | kubectl apply -f -
-```
-
-This will deploy the backend service into the `argocd` namespace and expose it on port 80.
-
-### Install UI extension
-
-The UI extension needs to be installed by mounting the React component
-in Argo CD API server. This process can be automated by using the
-[argocd-extension-installer][1] or by configuring `extensionList` in your Argo CD Helm chart.
-
-The yaml file below is an example of how to define a kustomize patch
-to install this UI extension manually:
+When ArgoCD Applications point to a GitOps monorepo (e.g., `infra-monorepo`), add annotations to tell the extension which application source repo to diff:
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: argocd-server
+  name: rails-api
+  namespace: argocd
+  annotations:
+    # Override the repo used for the git diff (your app's source repo, not the gitops repo)
+    argocd-git-diff-extension/source-repo-url: https://github.com/your-org/rails-api
+    # Optionally override the revision (defaults to spec.source.targetRevision)
+    argocd-git-diff-extension/source-revision: v2.3.1
 spec:
-  template:
-    spec:
-      initContainers:
-        - name: extension-git-diff
-          image: quay.io/argoprojlabs/argocd-extension-installer:v0.0.1
-          env:
-          - name: EXTENSION_URL
-            value: [https://github.com/](https://github.com/)<YOUR_ORG>/git-diff-extension/releases/download/v1.0.0/extension.tar
-          - name: EXTENSION_CHECKSUM_URL
-            value: [https://github.com/](https://github.com/)<YOUR_ORG>/git-diff-extension/releases/download/v1.0.0/extension_checksums.txt
-          volumeMounts:
-            - name: extensions
-              mountPath: /tmp/extensions/
-          securityContext:
-            runAsUser: 1000
-            allowPrivilegeEscalation: false
-      containers:
-        - name: argocd-server
-          volumeMounts:
-            - name: extensions
-              mountPath: /tmp/extensions/
-      volumes:
-        - name: extensions
-          emptyDir: {}
+  source:
+    repoURL: https://github.com/your-org/infra-monorepo
+    targetRevision: main
+    path: gitops/application/rails-api
 ```
 
-*Note: If you are using the official Argo CD Helm Chart, you can achieve the same result using the `server.extensions.extensionList` value.*
+## Production Installation
 
-### Enabling the Git Diff extension in Argo CD
+### 1. Configure GitHub App credentials
 
-Argo CD needs to have the proxy extension feature enabled for the
-backend to work. In order to do so add the following entry
-in the `argocd-cmd-params-cm`:
+Store your GitHub App credentials in AWS Secrets Manager as a JSON object:
+
+```json
+{
+  "GITHUB_APP_ID": "895906",
+  "GITHUB_APP_INSTALLATION_ID": "50603003",
+  "GITHUB_APP_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\n..."
+}
+```
+
+### 2. Deploy the backend
+
+```bash
+# Using helmfile (recommended)
+helmfile apply
+
+# Or using Helm directly with External Secrets
+helm upgrade --install git-diff-extension ./chart/extension-backend \
+  --namespace argocd \
+  --set logLevel=info \
+  --set externalSecret.enabled=true \
+  --set externalSecret.clusterSecretStore=cluster-secret-store-internal-secretstore \
+  --set image.repository=your-registry/argocd-git-diff-backend \
+  --set image.tag=v1.0.0
+```
+
+To use a pre-existing secret (Vault Agent, Sealed Secrets, etc.):
+
+```bash
+helm upgrade --install git-diff-extension ./chart/extension-backend \
+  --namespace argocd \
+  --set existingSecret.enabled=true \
+  --set existingSecret.name=my-github-credentials
+```
+
+### 3. Install the UI extension
+
+Configure ArgoCD to load the UI extension from the backend service. In your ArgoCD Helm values:
+
+```yaml
+server:
+  extensions:
+    enabled: false
+  volumes:
+    - name: extensions
+      emptyDir: {}
+  volumeMounts:
+    - name: extensions
+      mountPath: /app/extensions/
+  initContainers:
+    - name: extension-installer
+      image: quay.io/argoprojlabs/argocd-extension-installer:v0.0.9
+      env:
+        - name: EXTENSION_URL
+          value: "http://extension-backend.argocd.svc.cluster.local/static/extension.tar.gz"
+      volumeMounts:
+        - name: extensions
+          mountPath: /tmp/extensions/
+      securityContext:
+        runAsUser: 1000
+        allowPrivilegeEscalation: false
+```
+
+### 4. Configure ArgoCD proxy and RBAC
+
+Enable the proxy extension feature in `argocd-cmd-params-cm`:
 
 ```yaml
 server.enable.proxy.extension: "true"
 ```
 
-The extension needs permission to be invoked by users. To enable it
-for all users (or specifically for admins), add the following entry in `argocd-rbac-cm`:
-
-```csv
-policy.csv: |-
-  p, role:readonly, extensions, invoke, git-diff-extension, allow
-  p, role:admin, extensions, invoke, git-diff-extension, allow
-```
-
-**Note**: make sure to assign a proper role to the extension policy if you
-want to restrict users.
-
-Finally, Argo CD needs to be configured so it knows how to reach the
-backend service. In order to do so, add the following section in the
-`argocd-cm`:
+Configure the backend URL in `argocd-cm`:
 
 ```yaml
 extension.config: |-
@@ -106,13 +130,145 @@ extension.config: |-
     - name: git-diff-extension
       backend:
         services:
-          - url: [http://extension-backend.argocd.svc.cluster.local:80](http://extension-backend.argocd.svc.cluster.local:80)
+          - url: http://extension-backend.argocd.svc.cluster.local:80
 ```
 
-**Attention**: The `url` must point to the Kubernetes Service DNS name where your `git-diff-backend` is running.
+Grant extension access in `argocd-rbac-cm`:
+
+```csv
+policy.csv: |-
+  p, role:readonly, extensions, invoke, git-diff-extension, allow
+  p, role:admin, extensions, invoke, git-diff-extension, allow
+```
+
+## Local Testing with Minikube
+
+### Prerequisites
+
+- [Minikube](https://minikube.io/docs/start/)
+- [Helmfile](https://helmfile.readthedocs.io/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- Docker
+
+### Step 1: Start Minikube
+
+```bash
+minikube start --cpus 4 --memory 8192
+eval $(minikube docker-env)   # point Docker CLI at Minikube's daemon
+```
+
+### Step 2: Build the backend image into Minikube
+
+```bash
+docker build -t local/argocd-diff-backend:latest backend/
+```
+
+The Helm chart defaults `imagePullPolicy: IfNotPresent` and `image.repository: local/argocd-diff-backend`, so no registry push is needed.
+
+### Step 3: Deploy ArgoCD + the extension
+
+```bash
+# Export a GitHub token for local testing (GitHub App not required locally)
+export GITHUB_TOKEN=ghp_your_personal_access_token
+
+helmfile apply
+```
+
+This deploys ArgoCD and the `git-diff-extension` backend service into the `argocd` namespace.
+
+### Step 4: Access ArgoCD UI
+
+```bash
+# Port-forward the ArgoCD server
+kubectl port-forward svc/argo-cd-argocd-server -n argocd 8080:443
+
+# Retrieve the initial admin password
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath='{.data.password}' | base64 -d && echo
+```
+
+Open https://localhost:8080 and log in with username `admin`.
+
+### Step 5: Create a test Application
+
+```yaml
+# test-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: test-app
+  namespace: argocd
+  annotations:
+    argocd-git-diff-extension/source-repo-url: https://github.com/argoproj/argo-cd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argo-cd
+    targetRevision: v2.10.0
+    path: manifests/install
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+```
+
+```bash
+kubectl apply -f test-app.yaml
+```
+
+In the ArgoCD UI, open the application, click any `Deployment` resource, and select the **Git Diff** tab.
+
+### Step 6: Verify backend logs
+
+```bash
+kubectl logs -n argocd -l app=git-diff-extension-extension-backend -f
+```
+
+### Cleanup
+
+```bash
+minikube delete
+```
+
+## Development
+
+### Backend
+
+```bash
+# Run all tests
+cd backend && go test ./... -v -count=1
+
+# Build binary locally
+cd backend && CGO_ENABLED=0 go build -o server main.go
+
+# Test the API directly (requires credentials)
+export GITHUB_TOKEN=ghp_yourtoken
+./backend/server &
+curl "http://localhost:80/api/diff?repoURL=https://github.com/argoproj/argo-cd&targetRevision=v2.10.0"
+```
+
+### UI
+
+```bash
+cd ui
+npm ci
+npm test              # run Jest tests once
+npm run test:watch    # watch mode
+npm run build         # build production bundle into dist/
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `GITHUB_APP_ID` | Yes (prod) | GitHub App ID |
+| `GITHUB_APP_INSTALLATION_ID` | Yes (prod) | GitHub App Installation ID |
+| `GITHUB_APP_PRIVATE_KEY` | Yes (prod) | RSA private key PEM (newlines as `\n`) |
+| `GITHUB_TOKEN` | No (dev) | PAT for local development only |
+| `LOG_LEVEL` | No | `debug`, `info` (default), `warn`, `error` |
+| `PORT` | No | HTTP listen port (default: `80`) |
 
 ## Contributing
 
-TODO
+See [CLAUDE.md](./CLAUDE.md) for repository layout and development guidance.
 
 [1]: https://github.com/argoproj-labs/argocd-extension-installer
