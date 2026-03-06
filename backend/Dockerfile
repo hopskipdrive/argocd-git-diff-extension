@@ -1,20 +1,20 @@
-# 1. Reference the UI image to get the artifacts
-FROM local/argocd-diff-extension-ui:latest as ui-source
+FROM golang:1.24-bookworm AS builder
 
-# 2. Build the Backend
-FROM node:18-alpine
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --production
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY src ./src
+COPY main.go ./
 
-# 3. Create a folder for static assets
-RUN mkdir -p static
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server main.go
 
-# 4. COPY the tarball from the UI image into this image
-COPY --from=ui-source /app/dist/extension.tar.gz ./static/extension.tar.gz
+FROM gcr.io/distroless/static-debian12
 
-EXPOSE 4000
-CMD ["node", "src/index.js"]
+WORKDIR /
+
+COPY --from=builder /app/server .
+
+EXPOSE 80
+
+CMD ["/server"]
