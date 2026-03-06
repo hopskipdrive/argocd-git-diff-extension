@@ -1,0 +1,4 @@
+include:
+  - project: HopSkipDrive/ci-templates
+    file: ArgoCDGitDiffExtension.gitlab-ci.yml
+    ref: main
