@@ -187,7 +187,7 @@ describe("GitDiffExtension", () => {
     render(<GitDiffExtension application={makeApp()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Backend error \(500\)/i)).toBeInTheDocument();
     });
   });
 
