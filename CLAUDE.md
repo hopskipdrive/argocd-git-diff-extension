@@ -77,8 +77,8 @@ cd ui && npm run build
 ### Helm chart (lint/template)
 
 ```bash
-helm lint chart/extension-backend
-helm template git-diff-extension chart/extension-backend -f chart/extension-backend/values.yaml
+helm lint chart/argocd-git-diff-extension
+helm template git-diff-extension chart/argocd-git-diff-extension -f chart/argocd-git-diff-extension/values.yaml
 ```
 
 ## Environment Variables
