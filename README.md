@@ -68,7 +68,7 @@ Store your GitHub App credentials in AWS Secrets Manager as a JSON object:
 helmfile apply
 
 # Or using Helm directly with External Secrets
-helm upgrade --install git-diff-extension ./chart/extension-backend \
+helm upgrade --install git-diff-extension ./chart/argocd-git-diff-extension \
   --namespace argocd \
   --set logLevel=info \
   --set externalSecret.enabled=true \
@@ -80,7 +80,7 @@ helm upgrade --install git-diff-extension ./chart/extension-backend \
 To use a pre-existing secret (Vault Agent, Sealed Secrets, etc.):
 
 ```bash
-helm upgrade --install git-diff-extension ./chart/extension-backend \
+helm upgrade --install git-diff-extension ./chart/argocd-git-diff-extension \
   --namespace argocd \
   --set existingSecret.enabled=true \
   --set existingSecret.name=my-github-credentials
