@@ -80,7 +80,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "80"
+		port = "8080"
 	}
 
 	logger.Info("Git diff extension backend starting", "port", port)
