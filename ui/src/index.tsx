@@ -406,11 +406,13 @@ export const GitDiffExtension = (props: { application: Application }) => {
 export const component = GitDiffExtension;
 
 ((window: any) => {
-  window?.extensionsAPI?.registerResourceExtension(
-    component,
-    "*",
-    "Deployment",
-    "Git Diff",
-    { icon: "fa fa-git" }
-  );
+  for (const kind of ["Deployment", "Pod", "Rollout"]) {
+    window?.extensionsAPI?.registerResourceExtension(
+      component,
+      "*",
+      kind,
+      "Git Diff",
+      { icon: "fa fa-git" }
+    );
+  }
 })(window);
