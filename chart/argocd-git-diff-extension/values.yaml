@@ -83,6 +83,10 @@ resources:
     cpu: 200m
     memory: 128Mi
 
+nodeSelector: {}
+
+affinity: {}
+
 podAnnotations: {}
 
 podSecurityContext:

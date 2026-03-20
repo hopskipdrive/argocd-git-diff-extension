@@ -12,13 +12,13 @@ RUN go mod download
 COPY main.go ./
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -o server main.go
-
-FROM --platform=$BUILDPLATFORM gcr.io/distroless/static-debian12
+RUN go version ./server
+FROM --platform=$BUILDPLATFORM gcr.io/distroless/static-debian12:nonroot-arm64
 
 WORKDIR /
 
 COPY --from=builder /app/server .
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["/server"]
