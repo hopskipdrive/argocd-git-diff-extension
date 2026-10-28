@@ -1,5 +1,5 @@
 ARG BUILDPLATFORM=linux/arm64
-FROM --platform=$BUILDPLATFORM 564365460806.dkr.ecr.us-east-2.amazonaws.com/docker-hub/library/golang:1.24-bookworm AS builder
+FROM --platform=$BUILDPLATFORM 564365460806.dkr.ecr.us-east-2.amazonaws.com/docker-hub/library/golang:1.26.10-bookworm AS builder
 
 ARG TARGETOS=linux
 ARG TARGETARCH=arm64
