@@ -1,8 +1,6 @@
 module git-diff-backend
 
-go 1.24.0
-
-toolchain go1.24.13
+go 1.26.10
 
 require (
 	github.com/google/go-github/v57 v57.0.0
